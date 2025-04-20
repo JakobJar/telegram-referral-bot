@@ -2,7 +2,7 @@
 
 [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/release/python-3130/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-blue.svg)](https://www.postgresql.org/)
-[![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://www.docker.com/)
+[![Docker](https://img.shields.io/badge/Docker-Enabled-blue.svg)](https://hub.docker.com/r/jakobjar/telegram-referral-bot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Boost your Telegram channel's growth with this powerful, user-friendly referral bot. It generates unique referral links and accurately tracks invites while preventing self-referrals. Built using Python and PostgreSQL, this bot is easy to set up and scales effortlessly for communities of any size.
@@ -22,7 +22,7 @@ Boost your Telegram channel's growth with this powerful, user-friendly referral 
    ```yaml
    services:
      bot:
-       build: .
+       image: jakobjar/telegram-referral-bot
        depends_on:
          - db
        environment:
