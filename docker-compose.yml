@@ -1,15 +1,14 @@
 services:
   bot:
     build: .
-    volumes:
-      - .:/app
     depends_on:
       - db
     environment:
       - DB_HOST=db
     env_file:
       - .env
-    command: python -m src
+    networks:
+      - db_network
 
   db:
     image: postgres
@@ -21,10 +20,11 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    networks:
+      - db_network
 
 volumes:
   postgres_data:
 
-
+networks:
+  db_network:
