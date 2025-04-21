@@ -276,6 +276,32 @@ def get_referral_amount(user_id: int) -> int:
         logger.error(f"Error in get_referral_amount: {e}")
         return 0
 
+
+def get_top_referrers() -> list[tuple[str, int]]:
+    """
+    Generated a list of top referrers based on referral count.
+
+    Returns:
+        list[tuple[str, int]]: A list of tuples containing username and referral count.
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT c.username, COUNT(*) AS referral_count 
+                    FROM referral_codes c INNER JOIN used_referrals r USING (unique_code)
+                    GROUP BY c.username
+                    HAVING COUNT(*) > 0
+                    ORDER BY referral_count DESC
+                    LIMIT 10;
+                    """,
+                )
+                return cur.fetchall()
+    except Exception as e:
+        logger.error(f"Error in get_top_referrers: {e}")
+        return []
+
 @bot.chat_member_handler()
 def handle_join(member: types.ChatMemberUpdated):
     """
@@ -370,6 +396,21 @@ def check_ref(message: types.Message):
     reply = f"Referral amount: {referral_amount}"
     bot.reply_to(message, reply)
 
+
+@bot.message_handler(commands=["top"])
+def check_top(message: types.Message):
+    """
+    Handle the /top command to retrieve and display the top referrers.
+
+    Args:
+        message (telebot.types.Message): The incoming Telegram message.
+    """
+    top_referrers = get_top_referrers()
+    logger.debug(f"Retrieved top referrers: {top_referrers}")
+    reply = "*Top referrers:*\n"
+    for referrer, referral_count in top_referrers:
+        reply += f"- @{referrer}: {referral_count}\n"
+    bot.reply_to(message, reply, parse_mode="Markdown")
 
 if __name__ == "__main__":
     bot.infinity_polling()
