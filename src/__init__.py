@@ -276,11 +276,11 @@ def get_referral_amount(user_id: int) -> int:
         logger.error(f"Error in get_referral_amount: {e}")
         return 0
 
-
 @bot.chat_member_handler()
-def send_welcome(member: types.ChatMemberUpdated):
+def handle_join(member: types.ChatMemberUpdated):
     """
-    Handle the /start command, process referral links, and send a welcome message.
+    Handles the join of a new member to the channel.
+    Checks if the user is a referrer and adds them to the used_referrals table.
 
     Args:
         member (types.ChatMemberUpdated): The incoming Telegram message.
@@ -317,10 +317,10 @@ def send_welcome(member: types.ChatMemberUpdated):
         logging.debug("No referral link found.")
 
 
-@bot.message_handler(commands=["create"])
-def create_code(message):
+@bot.message_handler(commands=["start"])
+def create_code(message: types.Message):
     """
-    Handle the /create command to generate a new referral code or retrieve an existing one.
+    Handle the /start command to generate a new referral code or retrieve an existing one.
 
     Args:
         message (telebot.types.Message): The incoming Telegram message.
