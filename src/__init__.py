@@ -20,6 +20,7 @@ Usage:
 import telebot
 import logging
 from typing import Optional
+from datetime import datetime
 
 from telebot import types
 from telebot.types import ChatInviteLink
@@ -244,6 +245,15 @@ def check_user_exists(sender_user_id: int) -> Optional[bool]:
         return None
 
 
+def check_user_is_admin(user_id: int) -> bool:
+    try :
+        status = bot.get_chat_member(CHANNEL_ID, user_id).status
+        return status == "administrator" or status == "creator"
+    except Exception as e:
+        logger.debug(f"Error in check_user_is_admin: {e}")
+        return False
+
+
 def get_referral_amount(user_id: int) -> int:
     """
     Get the referral count for a given username.
@@ -300,6 +310,29 @@ def get_top_referrers() -> list[tuple[str, int]]:
                 return cur.fetchall()
     except Exception as e:
         logger.error(f"Error in get_top_referrers: {e}")
+        return []
+
+def get_latest_referrals() -> list[tuple[str, str, datetime]]:
+    """
+    Generated a list of top referrers based on referral count.
+
+    Returns:
+        list[tuple[str, int]]: A list of tuples containing username and referral count.
+    """
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT c.username, r.referred_username, r.created_at
+                    FROM referral_codes c INNER JOIN used_referrals r USING (unique_code)
+                    ORDER BY r.created_at DESC
+                    LIMIT 10;
+                    """,
+                )
+                return cur.fetchall()
+    except Exception as e:
+        logger.error(f"Error in get_latest_referrals: {e}")
         return []
 
 @bot.chat_member_handler()
@@ -407,10 +440,30 @@ def check_top(message: types.Message):
     """
     top_referrers = get_top_referrers()
     logger.debug(f"Retrieved top referrers: {top_referrers}")
-    reply = "*Top referrers:*\n"
+    reply = "<b>Top referrers:*</b>\n"
     for referrer, referral_count in top_referrers:
         reply += f"- @{referrer}: {referral_count}\n"
-    bot.reply_to(message, reply, parse_mode="Markdown")
+    bot.reply_to(message, reply, parse_mode="html")
+
+
+@bot.message_handler(commands=["latest"])
+def check_latest(message: types.Message):
+    """
+    Handle the /latest command to retrieve and display the latest referrers.
+
+    Args:
+        message (telebot.types.Message): The incoming Telegram message.
+    """
+    if not check_user_is_admin(message.from_user.id):
+        bot.reply_to(message, "You do not have permission to use this command.")
+        return
+    latest_referrers = get_latest_referrals()
+    logger.debug(f"Retrieved latest referrers: {latest_referrers}")
+    reply = "<b>Latest referrals:</b>\n"
+    for referrer, referred_username, timestamp in latest_referrers:
+        reply += f"- @{referrer} referred @{referred_username} on {str(timestamp.strftime("%Y-%m-%d %H:%M:%S"))}\n"
+    bot.reply_to(message, reply, parse_mode="html")
+
 
 if __name__ == "__main__":
     bot.infinity_polling()

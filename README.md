@@ -76,6 +76,8 @@ Boost your Telegram channel's growth with this powerful, user-friendly referral 
 
 - `/start` - Create a unique referral link
 - `/check` - Check the number of referrals you have
+- `/top` - Get top referrers
+- `/latest` - Get latest referrals 
 
 ## Contributing
 
