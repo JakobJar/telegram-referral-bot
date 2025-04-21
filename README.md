@@ -24,7 +24,8 @@ Boost your Telegram channel's growth with this powerful, user-friendly referral 
      bot:
        image: jakobjar/telegram-referral-bot
        depends_on:
-         - db
+         db:
+           condition: service_healthy
        environment:
          - DB_HOST=db
        env_file:
@@ -44,6 +45,11 @@ Boost your Telegram channel's growth with this powerful, user-friendly referral 
          - postgres_data:/var/lib/postgresql/data
        networks:
          - db_network
+       healthcheck:
+         test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+         interval: 15s
+         timeout: 5s
+         retries: 3
    
    volumes:
      postgres_data:
