@@ -128,14 +128,14 @@ def create_tables():
             cur.execute(
                 """
                 CREATE TABLE IF NOT EXISTS used_referrals (
-                    unique_code VARCHAR(17) PRIMARY KEY REFERENCES referral_codes(unique_code),
-                    referred_user_id BIGINT NOT NULL,
+                    referred_user_id BIGINT NOT NULL PRIMARY KEY,
+                    unique_code VARCHAR(17) NOT NULL REFERENCES referral_codes(unique_code),
                     referred_username VARCHAR(255),
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
             """
             )
-            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS used_referrals_user_id ON used_referrals(referred_user_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS used_referrals_unique_code ON used_referrals(unique_code)")
         logger.info("Tables created successfully.")
     except Exception as e:
         logger.error(f"Error creating tables: {e}")

@@ -144,9 +144,8 @@ def create_referral_code(sender_user_id: int, sender_username: str) -> Optional[
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO referral_codes (unique_code, user_id, username) 
-                    VALUES (%s, %s, %s) 
-                    ON CONFLICT (user_id) DO NOTHING RETURNING unique_code
+                    INSERT INTO referral_codes (unique_code, user_id, username)
+                    VALUES (%s, %s, %s) ON CONFLICT (user_id) DO NOTHING RETURNING unique_code
                     """,
                     (unique_code, sender_user_id, sender_username),
                 )
@@ -182,8 +181,7 @@ def add_user(unique_code: str, sender_user_id: int, sender_username: str) -> boo
                 cur.execute(
                     """
                     INSERT INTO used_referrals (unique_code, referred_user_id, referred_username)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (referred_user_id) DO NOTHING
+                    VALUES (%s, %s, %s) ON CONFLICT (referred_user_id) DO NOTHING
                     """,
                     (unique_code, sender_user_id, sender_username),
                 )
@@ -246,7 +244,7 @@ def check_user_exists(sender_user_id: int) -> Optional[bool]:
 
 
 def check_user_is_admin(user_id: int) -> bool:
-    try :
+    try:
         status = bot.get_chat_member(CHANNEL_ID, user_id).status
         return status == "administrator" or status == "creator"
     except Exception as e:
@@ -271,7 +269,8 @@ def get_referral_amount(user_id: int) -> int:
                 cur.execute(
                     """
                     SELECT COUNT(*)
-                    FROM referral_codes INNER JOIN used_referrals USING (unique_code)
+                    FROM referral_codes
+                             INNER JOIN used_referrals USING (unique_code)
                     WHERE user_id = %s;
                     """,
                     (user_id,)
@@ -299,18 +298,19 @@ def get_top_referrers() -> list[tuple[str, int]]:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT c.username, COUNT(*) AS referral_count 
-                    FROM referral_codes c INNER JOIN used_referrals r USING (unique_code)
+                    SELECT c.username, COUNT(*) AS referral_count
+                    FROM referral_codes c
+                             INNER JOIN used_referrals r USING (unique_code)
                     GROUP BY c.username
                     HAVING COUNT(*) > 0
-                    ORDER BY referral_count DESC
-                    LIMIT 10;
+                    ORDER BY referral_count DESC LIMIT 10;
                     """,
                 )
                 return cur.fetchall()
     except Exception as e:
         logger.error(f"Error in get_top_referrers: {e}")
         return []
+
 
 def get_latest_referrals() -> list[tuple[str, str, datetime]]:
     """
@@ -325,15 +325,16 @@ def get_latest_referrals() -> list[tuple[str, str, datetime]]:
                 cur.execute(
                     """
                     SELECT c.username, r.referred_username, r.created_at
-                    FROM referral_codes c INNER JOIN used_referrals r USING (unique_code)
-                    ORDER BY r.created_at DESC
-                    LIMIT 10;
+                    FROM referral_codes c
+                             INNER JOIN used_referrals r USING (unique_code)
+                    ORDER BY r.created_at DESC LIMIT 10;
                     """,
                 )
                 return cur.fetchall()
     except Exception as e:
         logger.error(f"Error in get_latest_referrals: {e}")
         return []
+
 
 @bot.chat_member_handler()
 def handle_join(member: types.ChatMemberUpdated):
@@ -364,11 +365,10 @@ def handle_join(member: types.ChatMemberUpdated):
         return
 
     if referrer_id and check_new_user(user_id):
-        logger.debug(
-            f"New user detected. Incrementing counter for {referrer_id}"
-        )
+        logger.debug(f"User @{username} has been referred by @{referrer_id}!")
         add_user_result = add_user(unique_code, user_id, username)
-        logger.debug(f"Add user result: {add_user_result}")
+        if not add_user_result:
+            return
         bot.send_message(referrer_id, f"You have successfully referred @{username}!")
     elif referrer_id:
         logger.debug(f"User has already been referred.")
@@ -440,7 +440,7 @@ def check_top(message: types.Message):
     """
     top_referrers = get_top_referrers()
     logger.debug(f"Retrieved top referrers: {top_referrers}")
-    reply = "<b>Top referrers:*</b>\n"
+    reply = "<b>Top referrers:</b>\n"
     for referrer, referral_count in top_referrers:
         reply += f"- @{referrer}: {referral_count}\n"
     bot.reply_to(message, reply, parse_mode="html")
