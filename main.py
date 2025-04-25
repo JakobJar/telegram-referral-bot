@@ -6,7 +6,7 @@ It also ensures proper cleanup of database connections on exit.
 """
 
 import atexit
-from src import bot
+from src import bot, get_top_referrers
 from src.db_setup import close_db_pool, init_db_pool, create_database, create_tables
 import logging
 

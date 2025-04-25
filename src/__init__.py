@@ -30,7 +30,7 @@ from .config import (
     CHANNEL_ID,
     DEBUG, SUBSCRIPTION_PRICE,
 )
-from .db_setup import get_db_connection
+from .db_setup import get_db_connection, get_db_cursor
 
 # Set up logging
 logging.basicConfig(
@@ -70,15 +70,14 @@ def get_user_id_from_storage(unique_code: str) -> Optional[int]:
         Optional[int]: The associated user_id, or None if not found.
     """
     try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT user_id FROM referral_codes WHERE unique_code = %s",
-                    (unique_code,),
-                )
-                result = cur.fetchone()
-                logger.debug(f"get_user_id_from_storage result: {result}")
-                return result[0] if result else None
+        with get_db_cursor() as cur:
+            cur.execute(
+                "SELECT user_id FROM referral_codes WHERE unique_code = %s",
+                (unique_code,),
+            )
+            result = cur.fetchone()
+            logger.debug(f"get_user_id_from_storage result: {result}")
+            return result[0] if result else None
     except Exception as e:
         logger.error(f"Error in get_user_id_from_storage: {e}")
         return None
@@ -96,17 +95,16 @@ def grab_referral_code(user_id: int) -> Optional[str]:
     """
     logger.debug(f"Attempting to grab referral code for user: {user_id}")
     try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT unique_code FROM referral_codes WHERE user_id = %s", (user_id,)
-                )
-                result = cur.fetchone()
-                if result:
-                    return result[0]
-                else:
-                    logger.debug(f"No referral code found for user: {user_id}")
-                    return None
+        with get_db_cursor() as cur:
+            cur.execute(
+                "SELECT unique_code FROM referral_codes WHERE user_id = %s", (user_id,)
+            )
+            result = cur.fetchone()
+            if result:
+                return result[0]
+            else:
+                logger.debug(f"No referral code found for user: {user_id}")
+                return None
     except Exception as e:
         logger.error(f"Error in grab_referral_code: {e}")
         return None
@@ -176,15 +174,14 @@ def add_user(unique_code: str, sender_user_id: int, sender_username: str) -> boo
         bool: True if the user was added successfully, False otherwise.
     """
     try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO used_referrals (unique_code, referred_user_id, referred_username)
-                    VALUES (%s, %s, %s) ON CONFLICT (referred_user_id) DO NOTHING
-                    """,
-                    (unique_code, sender_user_id, sender_username),
-                )
+        with get_db_cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO used_referrals (unique_code, referred_user_id, referred_username)
+                VALUES (%s, %s, %s) ON CONFLICT (referred_user_id) DO NOTHING
+                """,
+                (unique_code, sender_user_id, sender_username),
+            )
         return True
     except Exception as e:
         logger.error(f"Error in add_user: {e}")
@@ -202,19 +199,18 @@ def check_new_user(sender_user_id: int) -> bool:
         bool: True if the user is new, False otherwise.
     """
     try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT referred_user_id
-                    FROM used_referrals
-                    WHERE referred_user_id = %s;
-                    """,
-                    (sender_user_id,),
-                )
-                result = cur.fetchone()
-                logger.debug(f"check_new_user result for user_id {sender_user_id}: {result}")
-                return result is None
+        with get_db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT referred_user_id
+                FROM used_referrals
+                WHERE referred_user_id = %s;
+                """,
+                (sender_user_id,),
+            )
+            result = cur.fetchone()
+            logger.debug(f"check_new_user result for user_id {sender_user_id}: {result}")
+            return result is None
     except Exception as e:
         logger.error(f"Error in check_new_user: {e}")
         return False
@@ -231,13 +227,12 @@ def check_user_exists(sender_user_id: int) -> Optional[bool]:
         Optional[bool]: True if the user exists, False if not, None if an error occurred.
     """
     try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "SELECT * FROM referral_codes WHERE user_id = %s;",
-                    (sender_user_id,)
-                )
-                return cur.fetchone() is not None
+        with get_db_cursor() as cur:
+            cur.execute(
+                "SELECT * FROM referral_codes WHERE user_id = %s;",
+                (sender_user_id,)
+            )
+            return cur.fetchone() is not None
     except Exception as e:
         logger.error(f"Error in check_user_exists: {e}")
         return None
@@ -264,23 +259,22 @@ def get_referral_amount(user_id: int) -> int:
     """
     logger.debug(f"Getting referral count for user: {user_id}")
     try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT COUNT(*)
-                    FROM referral_codes
-                             INNER JOIN used_referrals USING (unique_code)
-                    WHERE user_id = %s;
-                    """,
-                    (user_id,)
-                )
-                result = cur.fetchone()
-                if result:
-                    return result[0]
-                else:
-                    logger.debug(f"No referral count found for user: {user_id}")
-                    return 0
+        with get_db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM referral_codes
+                         INNER JOIN used_referrals USING (unique_code)
+                WHERE user_id = %s;
+                """,
+                (user_id,)
+            )
+            result = cur.fetchone()
+            if result:
+                return result[0]
+            else:
+                logger.debug(f"No referral count found for user: {user_id}")
+                return 0
     except Exception as e:
         logger.error(f"Error in get_referral_amount: {e}")
         return 0
@@ -294,19 +288,18 @@ def get_top_referrers() -> list[tuple[str, int]]:
         list[tuple[str, int]]: A list of tuples containing username and referral count.
     """
     try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT c.username, COUNT(*) AS referral_count
-                    FROM referral_codes c
-                             INNER JOIN used_referrals r USING (unique_code)
-                    GROUP BY c.username
-                    HAVING COUNT(*) > 0
-                    ORDER BY referral_count DESC LIMIT 10;
-                    """,
-                )
-                return cur.fetchall()
+        with get_db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.username, COUNT(*) AS referral_count
+                FROM referral_codes c
+                         INNER JOIN used_referrals r USING (unique_code)
+                GROUP BY c.username
+                HAVING COUNT(*) > 0
+                ORDER BY referral_count DESC LIMIT 10;
+                """,
+            )
+            return cur.fetchall()
     except Exception as e:
         logger.error(f"Error in get_top_referrers: {e}")
         return []
@@ -320,17 +313,16 @@ def get_latest_referrals() -> list[tuple[str, str, datetime]]:
         list[tuple[str, int]]: A list of tuples containing username and referral count.
     """
     try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    SELECT c.username, r.referred_username, r.created_at
-                    FROM referral_codes c
-                             INNER JOIN used_referrals r USING (unique_code)
-                    ORDER BY r.created_at DESC LIMIT 10;
-                    """,
-                )
-                return cur.fetchall()
+        with get_db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.username, r.referred_username, r.created_at
+                FROM referral_codes c
+                         INNER JOIN used_referrals r USING (unique_code)
+                ORDER BY r.created_at DESC LIMIT 10;
+                """,
+            )
+            return cur.fetchall()
     except Exception as e:
         logger.error(f"Error in get_latest_referrals: {e}")
         return []

@@ -5,8 +5,10 @@ This module handles the initialization, connection, and management of the Postgr
 It provides functions for creating the database, setting up tables, and managing database connections.
 """
 
-import psycopg2
-from psycopg2 import pool
+import psycopg
+from psycopg import ConnectionInfo
+from psycopg_pool import ConnectionPool
+
 from .config import DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
 import os
 import logging
@@ -14,7 +16,7 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
-db_pool = None
+db_pool: ConnectionPool | None = None
 
 is_testing = os.environ.get("TESTING", "False") == "True"
 
@@ -32,15 +34,10 @@ def init_db_pool():
     global db_pool
     if db_pool is None:
         try:
-            db_pool = pool.SimpleConnectionPool(
-                1,
-                20,
-                host=DB_HOST,
-                port=DB_PORT,
-                dbname=DB_NAME,
-                user=DB_USER,
-                password=DB_PASSWORD,
-            )
+            db_pool = ConnectionPool(f"postgres://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+                                     min_size=1,
+                                     max_size=20)
+            db_pool.wait()
             logger.info("Database connection pool initialized.")
         except Exception as e:
             logger.error(f"Error initializing database connection pool: {e}")
@@ -49,12 +46,7 @@ def init_db_pool():
 
 def get_db_connection():
     """Get a connection from the pool."""
-    return db_pool.getconn()
-
-
-def release_db_connection(conn):
-    """Release a connection back to the pool."""
-    db_pool.putconn(conn)
+    return db_pool.connection()
 
 
 @contextmanager
@@ -67,13 +59,10 @@ def get_db_cursor():
     global db_pool
     if db_pool is None:
         init_db_pool()
-    conn = db_pool.getconn()
-    try:
+    with db_pool.connection() as conn:
         with conn.cursor() as cur:
             yield cur
         conn.commit()
-    finally:
-        db_pool.putconn(conn)
 
 
 def create_database():
@@ -83,13 +72,7 @@ def create_database():
         print(
             f"Attempting to connect to: host={DB_HOST}, port={DB_PORT}, user={DB_USER}, dbname=postgres"
         )
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            dbname="postgres",
-        )
+        conn = psycopg.connect(f"postgres://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/postgres")
         conn.autocommit = True
         with conn.cursor() as cur:
             db_name = DB_NAME if not is_testing else f"test_{DB_NAME}"
@@ -102,7 +85,7 @@ def create_database():
                 logger.info(f"Database '{db_name}' created.")
             else:
                 logger.info(f"Database '{db_name}' already exists.")
-    except psycopg2.Error as e:
+    except psycopg.Error as e:
         logger.error(f"Error creating database: {e}")
     finally:
         if conn:
@@ -153,7 +136,7 @@ def close_db_pool():
     global db_pool
     if db_pool is not None:
         try:
-            db_pool.closeall()
+            db_pool.close()
             logger.info("Database connection pool closed.")
         except Exception as e:
             logger.error(f"Error closing database pool: {e}")
