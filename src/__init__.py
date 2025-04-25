@@ -358,7 +358,7 @@ def handle_join(member: types.ChatMemberUpdated):
     unique_code = extract_unique_code(member.invite_link)
     from_user = member.from_user
     user_id = from_user.id
-    username = from_user.username if from_user.username else from_user.full_name
+    username = ("@" + from_user.username) if from_user.username else from_user.full_name
 
     logger.debug(
         f"Received member update User ID: {user_id}, Username: {username}, Unique code: {unique_code}, Old Status: {member.old_chat_member.status}, New Status: {member.new_chat_member.status}"
@@ -395,7 +395,7 @@ def create_code(message: types.Message):
     """
     from_user = message.from_user
     sender_user_id = from_user.id
-    sender_username = from_user.username if from_user.username else from_user.full_name
+    sender_username = ("@" + from_user.username) if from_user.username else from_user.full_name
     logger.debug(f"Creating code for user: {sender_username}({sender_user_id})")
 
     # First, try to get an existing code
