@@ -59,6 +59,22 @@ def extract_unique_code(link: ChatInviteLink) -> Optional[str]:
     return parts[-1]
 
 
+def get_user_message_link(user_id: int, username: str) -> str:
+    """
+    Generate a link to the user for a message.
+
+    Args:
+        user_id (int): The user id of the user.
+        username (str): The username of the user
+
+    Returns:
+        str: Link to the user for a message.
+    """
+    if username is None:
+        return f"<a href=\"tg://user?id={user_id}\">Unknown User</a>"
+    return f"<a href=\"tg://user?id={user_id}\">{username}</a>"
+
+
 def get_user_id_from_storage(unique_code: str) -> Optional[int]:
     """
     Retrieve the user id associated with a given unique code from the database.
@@ -280,21 +296,21 @@ def get_referral_amount(user_id: int) -> int:
         return 0
 
 
-def get_top_referrers() -> list[tuple[str, int]]:
+def get_top_referrers() -> list[tuple[int, str, int]]:
     """
     Generated a list of top referrers based on referral count.
 
     Returns:
-        list[tuple[str, int]]: A list of tuples containing username and referral count.
+        list[tuple[int, str, int]]: A list of tuples containing username and referral count.
     """
     try:
         with get_db_cursor() as cur:
             cur.execute(
                 """
-                SELECT c.username, COUNT(*) AS referral_count
+                SELECT c.user_id, c.username, COUNT(*) AS referral_count
                 FROM referral_codes c
                          INNER JOIN used_referrals r USING (unique_code)
-                GROUP BY c.username
+                GROUP BY c.user_id, c.username
                 HAVING COUNT(*) > 0
                 ORDER BY referral_count DESC LIMIT 10;
                 """,
@@ -305,18 +321,18 @@ def get_top_referrers() -> list[tuple[str, int]]:
         return []
 
 
-def get_latest_referrals() -> list[tuple[str, str, datetime]]:
+def get_latest_referrals() -> list[tuple[int, str, int, str, datetime]]:
     """
     Generated a list of top referrers based on referral count.
 
     Returns:
-        list[tuple[str, int]]: A list of tuples containing username and referral count.
+        list[tuple[int, str, int, str, datetime]]: A list of tuples containing username and referral count.
     """
     try:
         with get_db_cursor() as cur:
             cur.execute(
                 """
-                SELECT c.username, r.referred_username, r.created_at
+                SELECT c.user_id, c.username, r.referred_user_id, r.referred_username, r.created_at
                 FROM referral_codes c
                          INNER JOIN used_referrals r USING (unique_code)
                 ORDER BY r.created_at DESC LIMIT 10;
@@ -340,8 +356,9 @@ def handle_join(member: types.ChatMemberUpdated):
     if member.chat.username != CHANNEL_ID[1:]:
         return
     unique_code = extract_unique_code(member.invite_link)
-    user_id = member.from_user.id
-    username = member.from_user.username
+    from_user = member.from_user
+    user_id = from_user.id
+    username = from_user.username if from_user.username else from_user.full_name
 
     logger.debug(
         f"Received member update User ID: {user_id}, Username: {username}, Unique code: {unique_code}, Old Status: {member.old_chat_member.status}, New Status: {member.new_chat_member.status}"
@@ -361,7 +378,7 @@ def handle_join(member: types.ChatMemberUpdated):
         add_user_result = add_user(unique_code, user_id, username)
         if not add_user_result:
             return
-        bot.send_message(referrer_id, f"You have successfully referred @{username}!")
+        bot.send_message(referrer_id, f"You have successfully referred {get_user_message_link(user_id, username)}!")
     elif referrer_id:
         logger.debug(f"User has already been referred.")
     else:
@@ -376,8 +393,9 @@ def create_code(message: types.Message):
     Args:
         message (telebot.types.Message): The incoming Telegram message.
     """
-    sender_user_id = message.from_user.id
-    sender_username = message.from_user.username
+    from_user = message.from_user
+    sender_user_id = from_user.id
+    sender_username = from_user.username if from_user.username else from_user.full_name
     logger.debug(f"Creating code for user: {sender_username}({sender_user_id})")
 
     # First, try to get an existing code
@@ -433,8 +451,8 @@ def check_top(message: types.Message):
     top_referrers = get_top_referrers()
     logger.debug(f"Retrieved top referrers: {top_referrers}")
     reply = "<b>Top referrers:</b>\n"
-    for referrer, referral_count in top_referrers:
-        reply += f"- @{referrer}: {referral_count}\n"
+    for user_id, username, referral_count in top_referrers:
+        reply += f"- {get_user_message_link(user_id, username)}: {referral_count}\n"
     bot.reply_to(message, reply, parse_mode="html")
 
 
@@ -452,8 +470,8 @@ def check_latest(message: types.Message):
     latest_referrers = get_latest_referrals()
     logger.debug(f"Retrieved latest referrers: {latest_referrers}")
     reply = "<b>Latest referrals:</b>\n"
-    for referrer, referred_username, timestamp in latest_referrers:
-        reply += f"- @{referrer} referred @{referred_username} on {str(timestamp.strftime("%Y-%m-%d %H:%M:%S"))}\n"
+    for referrer_user_id, referrer_username, referred_user_id, referred_username, timestamp in latest_referrers:
+        reply += f"- {get_user_message_link(referrer_user_id, referrer_username)} referred {get_user_message_link(referred_user_id, referred_username)} on {str(timestamp.strftime("%Y-%m-%d %H:%M:%S"))}\n"
     bot.reply_to(message, reply, parse_mode="html")
 
 
